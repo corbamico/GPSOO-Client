@@ -14,17 +14,14 @@ case class GPSPoint(gps_time:String,lng:Double,lat:Double,course:Int,speed:Int) 
 }
 
 trait CommandMessage
-case class COMMAND_START(username:String,password:String,imei:String,begin_time:DateTime,end_time:DateTime) extends CommandMessage
-case class COMMAND_STOP  extends CommandMessage
+case class COMMAND_START(username:String,password:String,imei:String,begin_time:DateTime,end_time:DateTime,saveFileName:String="") extends CommandMessage
+case class COMMAND_STOP(msg:String="",records:Long=0)  extends CommandMessage{
+    override def toString = s"message=$msg\nsaved=$records records in file tracks.txt\n"
+}
 case class GPSPointsMsg(points:List[GPSPoint]) extends CommandMessage
 
 
-abstract class LinkedActor(nextActor:ActorRef) extends Actor{
-    def defaultReceive:Receive = {
-        case msg:COMMAND_START => nextActor ! msg
-        case msg:COMMAND_STOP  => nextActor forward msg
-    } 
-}
+abstract class LinkedActor(nextActor:ActorRef) extends Actor
 
 class SupervisorActor extends Actor{
     val serializeActor = context.actorOf(Props(new SerializeActor(null)),"serializeActor")
@@ -40,29 +37,37 @@ class HttpActor(nextActor:ActorRef) extends LinkedActor(nextActor){
     val client = GPSOOClient()
 
     def receive = {
-        case COMMAND_START(username,password,imei,begin_time,end_time) => 
+        case COMMAND_START(username,password,imei,begin_time,end_time,_) => 
              client.login(username,password)
                    .getHistory(imei,begin_time,end_time){
-                        p => nextActor ! GPSPointsMsg(p)
+                        p => 
+                            nextActor ! GPSPointsMsg(p)
+                            //println(s"save($p)")
                       }
 
         case msg:COMMAND_STOP => 
-            if (client.getMessage != "") sender ! client.getMessage else nextActor forward msg
+            //if error ocur in HTTP then response COMMAND_STOP, else let SerializeActor to handle
+            if (client.getMessage != "") sender ! COMMAND_STOP(client.getMessage,0) else nextActor forward msg
     }
 }
 
 
 
 class SerializeActor(nextActor:ActorRef = null) extends LinkedActor(nextActor){
+    var records:Long=0
+    var fileOutputStream:FileOutputStream = new FileOutputStream("tracks.txt")
     def receive = {
-        case msg:COMMAND_STOP => sender ! msg
-        case GPSPointsMsg(p) => {println("save points");println(p.mkString("\n"))}
+        //case COMMAND_START(_,_,_,_,_,saveFileName) =>
+        //     fileOutputStream =  java.nio.file.Files.newOutputStream(new java.nio.file.Path(saveFileName),CREATE,APPEND)
+        case msg:COMMAND_STOP => sender ! COMMAND_STOP("success",records)
+        case GPSPointsMsg(p) => {fileOutputStream.write( p.mkString("\n").getBytes );records = records+p.size}
     }
+    override def postStop = try fileOutputStream.close finally {}
 }
 
 
 case class GPSOOClient{
-    private val MAX_RECORDS_LIMIT = 500
+    private val MAX_RECORDS_LIMIT = 100
 
     //if access_token=="", then consider as not login, or access_token expired
     private var access_token = ""
@@ -117,7 +122,7 @@ case class GPSOOClient{
             val url = "http://api.gpsoo.net/1/devices/history?"
             val data = Seq[(String,String)]("account"->username,
             "access_token"->access_token,
-            "time"->DateTime.now.asUnixTimestamp,
+            "time"->(DateTime.now).asUnixTimestamp,
             "imei"->imei,
             "map_type"->"BAIDU",
             "begin_time"-> fromTime.asUnixTimestamp,

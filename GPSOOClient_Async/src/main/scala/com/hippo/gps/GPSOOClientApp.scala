@@ -9,11 +9,13 @@ import scala.concurrent.duration.Duration
 //import java.io._
 
 object GPSOOClientApp {
-
+    
     val ACCOUNT = "username"
     val PASSWORD = "password"
     val IMEI = "861234567890"
-    val FILENAME_SAVE = "track.txt"
+    val FILENAME_SAVE = "tracks.txt"
+    
+
 
     val END_TIME   = DateTime.now
     val BEGIN_TIME = END_TIME - 1.day
@@ -21,12 +23,12 @@ object GPSOOClientApp {
 
     def main(args: Array[String]): Unit = {
         import akka.pattern.ask
-        implicit val timeout = Timeout(2 *1000)
+        implicit val timeout = Timeout(15 *1000)
 
         val _system = ActorSystem("GPSOOClientApp")
         val supervisorActor = _system.actorOf(Props[SupervisorActor],"supervisorActor")
 
-        supervisorActor ! COMMAND_START(ACCOUNT,PASSWORD,IMEI,BEGIN_TIME,END_TIME)
+        supervisorActor ! COMMAND_START(ACCOUNT,PASSWORD,IMEI,BEGIN_TIME,END_TIME,FILENAME_SAVE)
         
         val future = supervisorActor ask COMMAND_STOP()
         val result = Await.result(future,timeout.duration)
