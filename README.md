@@ -12,14 +12,19 @@ The data in server only be stored for 150 days, *GPSOO Client* can download all 
 
 There is two version of GPSOO Client
 * (GPSOOClient_Sync) Using Blocking Scalaj.HTTP
-* (GPSOOClient_Async) Using akka.actor method (not yet, I plan to)
+* (GPSOOClient_Async) Using akka.actor method
 
 ## Compile&Run ##
-
+1. sync version
+    change your account/password/imei in GPSOOClientApp.scala
     >cd GPSOOClient_Sync
     >sbt compile
     >sbt run
-
+2. actor version
+    change your account/password/imei in GPSOOClientApp.scala
+    >cd GPSOOClient_Async
+    >sbt compile
+    >sbt run   
    
 
 
